@@ -1,0 +1,17 @@
+{
+  "name": "graph-scholar",
+  "version": "0.1.0",
+  "description": "GraphScholar — Graph RAG knowledge base for research papers, exposed via MCP",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "schema": "tsx src/graph/schema.ts",
+    "seed": "tsx src/seed.ts",
+    "ingest": "tsx src/pipeline.ts",
+    "mcp": "tsx src/mcp/server.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
