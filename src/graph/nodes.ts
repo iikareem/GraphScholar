@@ -1,1 +1,9 @@
-// Create/upsert Paper, Author, Concept, Chunk nodes
+export type {
+  AuthorNode,
+  CategoryNode,
+  ChunkNode,
+  ConceptNode,
+  Embedding,
+  GraphNode,
+  PaperNode,
+} from './model/index.js';

@@ -1,1 +1,1 @@
-// Create indexes and constraints on startup
+export { CONSTRAINTS, INDEXES, SCHEMA_STATEMENTS, VECTOR_INDEXES } from './model/index.js';
