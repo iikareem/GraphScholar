@@ -7,11 +7,19 @@
     "build": "tsc",
     "schema": "tsx src/graph/schema.ts",
     "seed": "tsx src/seed.ts",
-    "ingest": "tsx src/pipeline.ts",
     "mcp": "tsx src/mcp/server.ts"
   },
   "engines": {
     "node": ">=20"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "fast-xml-parser": "^5.9.3",
+    "neo4j-driver": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
 }
