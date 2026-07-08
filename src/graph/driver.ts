@@ -1,3 +1,4 @@
+import '../config/env.js';
 import neo4j, { type Driver } from 'neo4j-driver';
 
 export interface Neo4jConfig {
