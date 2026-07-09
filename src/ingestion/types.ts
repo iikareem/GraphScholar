@@ -6,3 +6,26 @@ export interface PaperMetadata {
   authors: AuthorNode[];
   categories: CategoryNode[];
 }
+
+/** Canonical section names used across ingestion and chunking */
+export type SectionName =
+  | 'abstract'
+  | 'introduction'
+  | 'methodology'
+  | 'results'
+  | 'conclusion'
+  | 'references'
+  | 'unknown';
+
+export interface PaperSection {
+  name: SectionName;
+  text: string;
+  startPage?: number;
+  endPage?: number;
+}
+
+/** Text extracted from a paper PDF, split into sections */
+export interface ExtractedPaper {
+  paperId: string;
+  sections: PaperSection[];
+}
