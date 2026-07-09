@@ -38,4 +38,15 @@ export class PaperRepository {
       { paperId, categoryName },
     );
   }
+
+  async linkCites(sourcePaperId: string, citedPaperId: string): Promise<void> {
+    await this.session.run(
+      `
+      MATCH (source:${NodeLabel.Paper} { id: $sourcePaperId })
+      MATCH (cited:${NodeLabel.Paper} { id: $citedPaperId })
+      MERGE (source)-[:${RelationshipType.Cites}]->(cited)
+      `,
+      { sourcePaperId, citedPaperId },
+    );
+  }
 }
