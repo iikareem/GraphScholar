@@ -4,10 +4,20 @@ import { createRepositories } from './graph/repositories/index.js';
 import type { IngestionResult } from './ingestion/context.js';
 import { runPipeline } from './pipeline.js';
 
-function logResult({ paperId, metadata }: IngestionResult) {
+function logResult({ paperId, metadata, sections, citations }: IngestionResult) {
   console.log(`[seed] ${paperId} — ${metadata.paper.title}`);
   console.log(`       authors: ${metadata.authors.map((a) => a.name).join(', ')}`);
   console.log(`       categories: ${metadata.categories.map((c) => c.name).join(', ')}`);
+  console.log(
+    `       sections: ${sections.map((s) => `${s.name}(${wordCount(s.text)})`).join(', ')}`,
+  );
+  console.log(
+    `       citations: ${citations.citedIds.length} linked, ${citations.unresolved} unresolved`,
+  );
+}
+
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
 }
 
 async function main() {
