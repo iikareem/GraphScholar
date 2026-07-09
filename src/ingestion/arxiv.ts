@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { NodeLabel } from '../graph/model/index.js';
+import { buildArxivPdfUrl, parseArxivId } from './arxiv-id.js';
 import type { PaperMetadata } from './types.js';
 
 const ARXIV_API = 'https://export.arxiv.org/api/query';
@@ -19,14 +20,6 @@ function normalizeText(value: string): string {
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];
-}
-
-function parseArxivId(entryId: string): { id: string; version: string } {
-  const match = entryId.match(/arxiv\.org\/abs\/(\d+\.\d+)(v\d+)?/i);
-  if (!match) {
-    throw new Error(`Could not parse ArXiv id from: ${entryId}`);
-  }
-  return { id: match[1], version: match[2] ?? 'v1' };
 }
 
 function mapEntryToMetadata(entry: Record<string, unknown>): PaperMetadata {
@@ -56,7 +49,7 @@ function mapEntryToMetadata(entry: Record<string, unknown>): PaperMetadata {
     abstract: normalizeText(String(entry.summary)),
     published: String(entry.published),
     updated: String(entry.updated),
-    pdfUrl: pdfLink?.['@_href'] ?? `https://arxiv.org/pdf/${id}${version}`,
+    pdfUrl: pdfLink?.['@_href'] ?? buildArxivPdfUrl(id, version),
   };
 
   return {
@@ -68,8 +61,52 @@ function mapEntryToMetadata(entry: Record<string, unknown>): PaperMetadata {
 
 /** Fetch paper metadata from ArXiv API and map to graph model types */
 export async function fetchPaperMetadata(paperId: string): Promise<PaperMetadata> {
+  const results = await fetchPaperMetadataList([paperId]);
+  const metadata = results[0];
+
+  if (!metadata) {
+    throw new Error(`Paper not found: ${paperId}`);
+  }
+
+  return metadata;
+}
+
+/** Fetch metadata for multiple papers in one ArXiv API request */
+export async function fetchPaperMetadataList(paperIds: string[]): Promise<PaperMetadata[]> {
+  if (paperIds.length === 0) {
+    return [];
+  }
+
   const url = new URL(ARXIV_API);
-  url.searchParams.set('id_list', paperId);
+  url.searchParams.set('id_list', paperIds.join(','));
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`);
+  }
+
+  const parsed = xmlParser.parse(await response.text()) as {
+    feed: { entry?: Record<string, unknown> | Record<string, unknown>[] };
+  };
+
+  const entries = asArray(parsed.feed.entry);
+  return entries.map((entry) => mapEntryToMetadata(entry));
+}
+
+function normalizeTitle(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** Search ArXiv by title and return the best-matching paper id, if any */
+export async function searchArxivByTitle(title: string): Promise<string | null> {
+  const queryTitle = normalizeTitle(title);
+  if (queryTitle.length < 8) {
+    return null;
+  }
+
+  const url = new URL(ARXIV_API);
+  url.searchParams.set('search_query', `ti:"${title.replace(/"/g, '')}"`);
+  url.searchParams.set('max_results', '5');
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -82,8 +119,17 @@ export async function fetchPaperMetadata(paperId: string): Promise<PaperMetadata
 
   const entries = asArray(parsed.feed.entry);
   if (entries.length === 0) {
-    throw new Error(`Paper not found: ${paperId}`);
+    return null;
   }
 
-  return mapEntryToMetadata(entries[0]);
+  for (const entry of entries) {
+    const metadata = mapEntryToMetadata(entry);
+    const resultTitle = normalizeTitle(metadata.paper.title);
+
+    if (resultTitle === queryTitle || resultTitle.includes(queryTitle)) {
+      return metadata.paper.id;
+    }
+  }
+
+  return mapEntryToMetadata(entries[0]).paper.id;
 }
