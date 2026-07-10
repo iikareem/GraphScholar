@@ -1,5 +1,6 @@
-/** OpenAI text-embedding-3-small */
-export const EMBEDDING_DIMENSIONS = 1536;
+import { EMBEDDING_DIMENSIONS } from '../../config/ai.js';
+
+export { EMBEDDING_DIMENSIONS };
 
 export const CONSTRAINTS = [
   `CREATE CONSTRAINT paper_id IF NOT EXISTS FOR (p:Paper) REQUIRE p.id IS UNIQUE`,
