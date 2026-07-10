@@ -2,6 +2,10 @@
 
 **A Graph RAG knowledge base for research papers — built on Neo4j and exposed to AI assistants via MCP.**
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Neo4j](https://img.shields.io/badge/Neo4j-018BFF?logo=neo4j&logoColor=white)](https://neo4j.com)
+[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-555)](https://modelcontextprotocol.io)
+
 GraphScholar ingests papers from ArXiv, builds a knowledge graph of authors, citations, concepts, and embedded text chunks, then lets Claude, Cursor, or any MCP client query that graph instead of relying on flat keyword or vector search alone.
 
 > For deep architecture notes, ingestion phases, and schema details, see [DESIGN.md](./DESIGN.md).
