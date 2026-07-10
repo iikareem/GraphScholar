@@ -1,5 +1,6 @@
 import type { Repositories } from './graph/repositories/index.js';
 import type { IngestionResult } from './ingestion/context.js';
+import { ingestChunks } from './ingestion/chunks.js';
 import { ingestCitations } from './ingestion/citations.js';
 import { ingestConcepts } from './ingestion/concepts.js';
 import { ingestMetadata } from './ingestion/metadata.js';
@@ -14,8 +15,7 @@ export async function runPipeline(
   const { sections } = await ingestPdf(paperId, metadata);
   const citations = await ingestCitations(paperId, sections, repos);
   const concepts = await ingestConcepts(paperId, metadata, repos);
+  const chunks = await ingestChunks(paperId, sections, repos);
 
-  // await ingestChunks(paperId, sections, repos);
-
-  return { paperId, metadata, sections, citations, concepts };
+  return { paperId, metadata, sections, citations, concepts, chunks };
 }

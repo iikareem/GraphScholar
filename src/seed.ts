@@ -4,7 +4,7 @@ import { createRepositories } from './graph/repositories/index.js';
 import type { IngestionResult } from './ingestion/context.js';
 import { runPipeline } from './pipeline.js';
 
-function logResult({ paperId, metadata, sections, citations, concepts }: IngestionResult) {
+function logResult({ paperId, metadata, sections, citations, concepts, chunks }: IngestionResult) {
   console.log(`[seed] ${paperId} — ${metadata.paper.title}`);
   console.log(`       authors: ${metadata.authors.map((a) => a.name).join(', ')}`);
   console.log(`       categories: ${metadata.categories.map((c) => c.name).join(', ')}`);
@@ -17,6 +17,7 @@ function logResult({ paperId, metadata, sections, citations, concepts }: Ingesti
   console.log(
     `       concepts (${concepts.mode}): ${concepts.introduces.length} introduces, ${concepts.uses.length} uses, ${concepts.related} related`,
   );
+  console.log(`       chunks: ${chunks.chunkCount} embedded`);
 }
 
 function wordCount(text: string): number {
