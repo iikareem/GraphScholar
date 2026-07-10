@@ -4,7 +4,7 @@ import { createRepositories } from './graph/repositories/index.js';
 import type { IngestionResult } from './ingestion/context.js';
 import { runPipeline } from './pipeline.js';
 
-function logResult({ paperId, metadata, sections, citations }: IngestionResult) {
+function logResult({ paperId, metadata, sections, citations, concepts }: IngestionResult) {
   console.log(`[seed] ${paperId} — ${metadata.paper.title}`);
   console.log(`       authors: ${metadata.authors.map((a) => a.name).join(', ')}`);
   console.log(`       categories: ${metadata.categories.map((c) => c.name).join(', ')}`);
@@ -13,6 +13,9 @@ function logResult({ paperId, metadata, sections, citations }: IngestionResult) 
   );
   console.log(
     `       citations: ${citations.citedIds.length} linked, ${citations.unresolved} unresolved`,
+  );
+  console.log(
+    `       concepts (${concepts.mode}): ${concepts.introduces.length} introduces, ${concepts.uses.length} uses, ${concepts.related} related`,
   );
 }
 
