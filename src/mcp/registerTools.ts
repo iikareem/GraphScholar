@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpContext } from './context.js';
+import { registerGetAuthorPapersTool } from './tools/getAuthorPapers.js';
 import { registerGetCitationChainTool } from './tools/getCitationChain.js';
 import { registerGetConceptPapersTool } from './tools/getConceptPapers.js';
 import { registerGetPaperTool } from './tools/getPaper.js';
@@ -10,6 +11,7 @@ const TOOL_NAMES = [
   'vector_search',
   'get_citation_chain',
   'get_concept_papers',
+  'get_author_papers',
 ] as const;
 
 /** Register all MCP tools on the server */
@@ -18,6 +20,7 @@ export function registerTools(server: McpServer, ctx: McpContext): void {
   registerVectorSearchTool(server, ctx);
   registerGetCitationChainTool(server, ctx);
   registerGetConceptPapersTool(server, ctx);
+  registerGetAuthorPapersTool(server, ctx);
 }
 
 export function listToolNames(): readonly string[] {
