@@ -54,7 +54,7 @@ The AI navigates the graph to answer — not just matching keywords.
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                         MCP Server                              │
+│                    MCP Server (stdio / HTTP)                    │
 │                                                                 │
 │  vector_search(query)        → relevant chunks by similarity    │
 │  get_paper(id)               → paper + all its relationships    │
@@ -75,9 +75,11 @@ The AI navigates the graph to answer — not just matching keywords.
 
 |Node|Properties|Description|
 |---|---|---|
-|`(:Paper)`|`id, title, abstract, published, full_text`|A research paper|
+|`(:Paper)`|`id, version, title, abstract, published, updated, pdfUrl`|A research paper|
 |`(:Author)`|`name`|A paper author|
-|`(:Chunk)`|`text, section, chunk_index, embedding`|A searchable text chunk|
+|`(:Category)`|`name`|ArXiv category|
+|`(:Chunk)`|`id, text, section, chunkIndex, embedding, page?`|A searchable text chunk|
+|`(:Concept)`|`name, embedding`|An extracted topic or method|
 |`(:Concept)`|`name`|A topic, method, or idea extracted from papers|
 |`(:Category)`|`name`|ArXiv category (cs.AI, cs.IR, etc.)|
 
@@ -153,13 +155,20 @@ For each section of each paper:
 - If the section is under 400 words → create 1 `(:Chunk)` node
 - If the section is over 400 words → split into paragraph chunks with overlap, each chunk gets a `chunk_index`
 
-Generate an embedding for every chunk using OpenAI's embedding model. Store embeddings directly on `(:Chunk)` nodes. Create Neo4j vector index on `(:Chunk).embedding`.
+Generate an embedding for every chunk via an OpenAI-compatible embedding API (default: local oMLX / bge-m3). Store embeddings on `(:Chunk)` nodes. Create a Neo4j vector index on `(:Chunk).embedding`.
 
 The References section is **not chunked** — it is only used for citation extraction in Phase 3.
 
 ### Phase 6 — MCP Server
 
-Expose the Neo4j graph as an MCP server with typed tools. The AI assistant calls these tools autonomously during a conversation to retrieve and traverse the knowledge graph.
+Expose the Neo4j graph as an MCP server with typed tools. The AI assistant calls these tools during a conversation to retrieve and traverse the knowledge graph.
+
+Two transports share the same tool registration (`createApp.ts`):
+
+| Transport | Entry | Use |
+|---|---|---|
+| **stdio** | `npm run mcp` → `src/mcp/server.ts` | Cursor / Claude spawn the process |
+| **HTTP** | `npm run mcp:http` → `src/mcp/httpServer.ts` | Streamable HTTP at `POST /mcp` |
 
 ---
 
@@ -167,37 +176,34 @@ Expose the Neo4j graph as an MCP server with typed tools. The AI assistant calls
 
 ```
 GraphScholar/
-│
 ├── src/
-│   │
 │   ├── ingestion/
 │   │   ├── arxiv.ts          # Fetch paper metadata from ArXiv API
 │   │   ├── pdf.ts            # Download PDF, extract text, split sections
 │   │   ├── citations.ts      # Parse references, resolve to ArXiv IDs
-│   │   ├── concepts.ts       # LLM extraction of concepts from abstracts
-│   │   ├── chunker.ts        # Section → chunks logic (400 word threshold)
-│   │   └── embedder.ts       # Generate embeddings via OpenAI
-│   │
+│   │   ├── concepts.ts       # LLM / light-mode concept extraction
+│   │   ├── chunker.ts        # Section → chunks (word limit + overlap)
+│   │   ├── chunks.ts         # Embed + persist Chunk nodes
+│   │   └── embedder.ts       # OpenAI-compatible embeddings
 │   ├── graph/
-│   │   ├── driver.ts         # Neo4j connection and session management
-│   │   ├── schema.ts         # Create indexes and constraints on startup
-│   │   ├── nodes.ts          # Create/upsert Paper, Author, Concept, Chunk nodes
-│   │   └── relationships.ts  # Create WROTE, CITES, HAS_CHUNK, etc.
-│   │
+│   │   ├── model/            # Labels, node/relationship types, schema
+│   │   ├── repositories/     # Neo4j persistence
+│   │   ├── driver.ts
+│   │   └── schema.ts
 │   ├── mcp/
-│   │   ├── server.ts         # MCP server entry point
-│   │   └── tools/
-│   │       ├── vectorSearch.ts      # Semantic search on Chunk nodes
-│   │       ├── getPaper.ts          # Paper + all its relationships
-│   │       ├── getCitationChain.ts  # Multi-hop citation traversal
-│   │       ├── getConceptPapers.ts  # All papers for a given concept
-│   │       └── getAuthorPapers.ts   # All papers by an author
-│   │
-│   ├── pipeline.ts           # Orchestrates full ingestion for a paper ID
-│   └── seed.ts               # Entry point: ingest a list of seed paper IDs
-│
+│   │   ├── server.ts         # stdio entry
+│   │   ├── httpServer.ts     # Streamable HTTP entry
+│   │   ├── createApp.ts      # Shared McpServer + registerTools
+│   │   ├── registerTools.ts
+│   │   ├── context.ts
+│   │   ├── tools/            # MCP tool adapters
+│   │   └── queries/          # Cypher read helpers
+│   ├── config/               # env, AI, papers, ingestion settings
+│   ├── pipeline.ts
+│   └── seed.ts
+├── docs/                     # Excalidraw data-model diagram
 ├── .env.example
-├── docker-compose.yml        # Neo4j instance
+├── docker-compose.yml
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -260,11 +266,10 @@ Output: Array of papers with title, date, and concepts
 |Layer|Technology|Why|
 |---|---|---|
 |Language|TypeScript|Type safety across the full pipeline|
-|Graph DB|Neo4j|Native graph traversal + built-in vector index|
-|Embeddings|OpenAI `text-embedding-3-small`|Best quality/cost ratio|
-|LLM (concept extraction)|OpenAI `gpt-4o-mini`|Cheap, fast, great at structured output|
+|Graph DB|Neo4j 5|Native graph traversal + built-in vector indexes|
+|Embeddings / LLM|OpenAI-compatible API (oMLX default)|Local or cloud; swap models via env|
 |PDF extraction|`pdfjs-dist`|Pure JS, no system dependencies|
-|MCP SDK|`@modelcontextprotocol/sdk`|Official MCP server implementation|
+|MCP SDK|`@modelcontextprotocol/sdk`|stdio + Streamable HTTP|
 |Neo4j driver|`neo4j-driver`|Official Neo4j TypeScript driver|
 |Runtime|Node.js 20+|LTS, native fetch, good TS support|
 |Local DB|Docker (Neo4j image)|Zero setup for local development|
@@ -281,15 +286,23 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
 
-# OpenAI (embeddings + concept extraction)
-OPENAI_API_KEY=your_openai_key
+# AI — oMLX or any OpenAI-compatible server
+# INGESTION_LIGHT_MODE=true  → skip LLM/embeddings (POC)
+INGESTION_LIGHT_MODE=false
+OPENAI_BASE_URL=http://localhost:8000/v1
+OPENAI_API_KEY=your_omlx_api_key
+CONCEPT_MODEL=mlx-community/Llama-3.2-1B-Instruct-4bit
+EMBEDDING_MODEL=mlx-community/bge-m3-mlx-8bit
+EMBEDDING_DIMENSIONS=1024
 
-# Ingestion settings
-CHUNK_WORD_LIMIT=400          # sections above this get split into multiple chunks
-CHUNK_OVERLAP_WORDS=40        # overlap between chunks to preserve context
-EMBEDDING_MODEL=text-embedding-3-small
-CONCEPT_MODEL=gpt-4o-mini
-MAX_CITATION_DEPTH=2          # how many hops to follow citations automatically
+# Ingestion
+CHUNK_WORD_LIMIT=400
+CHUNK_OVERLAP_WORDS=40
+MAX_CITATION_DEPTH=2
+
+# MCP HTTP (npm run mcp:http)
+MCP_HTTP_HOST=127.0.0.1
+MCP_HTTP_PORT=3000
 ```
 
 ---
@@ -300,7 +313,7 @@ MAX_CITATION_DEPTH=2          # how many hops to follow citations automatically
 
 - Node.js 20+
 - Docker Desktop
-- OpenAI API key
+- OpenAI-compatible API for embeddings/concepts (oMLX or OpenAI), or `INGESTION_LIGHT_MODE=true`
 
 ### 1. Clone and install
 
@@ -313,97 +326,102 @@ npm install
 ### 2. Start Neo4j
 
 ```bash
-docker-compose up -d
-# Neo4j browser available at http://localhost:7474
-# Default login: neo4j / your_password
+docker compose up -d
+# Neo4j browser: http://localhost:7474
 ```
 
 ### 3. Configure environment
 
 ```bash
 cp .env.example .env
-# Fill in your OpenAI API key and Neo4j password
+# Set NEO4J_PASSWORD and AI models / OPENAI_BASE_URL as needed
 ```
 
 ### 4. Initialize the graph schema
 
 ```bash
 npm run schema
-# Creates vector index, constraints, and indexes in Neo4j
 ```
 
 ### 5. Ingest seed papers
 
 ```bash
 npm run seed
-# Ingests the default seed list of ~20 Graph RAG / RAG papers
-# Takes 5-10 minutes depending on PDF sizes
-```
-
-Or ingest a specific paper by ArXiv ID:
-
-```bash
-npm run ingest 2310.11511
+# Papers listed in src/config/papers.ts
 ```
 
 ### 6. Start the MCP server
 
+**stdio:**
+
 ```bash
 npm run mcp
-# MCP server running on stdio, ready for Claude Desktop or Cursor
 ```
 
-### 7. Connect to Claude Desktop
+**HTTP:**
 
-Add this to your Claude Desktop `claude_desktop_config.json`:
+```bash
+npm run mcp:http
+# POST http://127.0.0.1:3000/mcp
+```
+
+### 7. Connect Cursor / Claude Desktop
+
+stdio example:
 
 ```json
 {
   "mcpServers": {
     "graph-scholar": {
-      "command": "node",
-      "args": ["/absolute/path/to/GraphScholar/dist/mcp/server.js"]
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/GraphScholar/src/mcp/server.ts"]
     }
   }
 }
 ```
 
-Restart Claude Desktop. You should now see the tools available.
+HTTP example (server must already be running):
+
+```json
+{
+  "mcpServers": {
+    "graph-scholar": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
 
 ---
 
 ## Seed Papers (Default)
 
-The default seed list covers the Graph RAG ecosystem so the knowledge graph is self-referential from the start:
+Configured in `src/config/papers.ts`:
 
 |Paper|ArXiv ID|Why included|
 |---|---|---|
-|Graph RAG (Microsoft)|2310.11511|The core paper this project is about|
-|Naive RAG / Advanced RAG survey|2312.10997|RAG foundations|
-|Attention Is All You Need|1706.03762|Foundational — appears in most citations|
+|Self-RAG|2310.11511|Reflection / retrieval control|
+|Advanced RAG survey|2312.10997|RAG foundations|
+|Attention Is All You Need|1706.03762|Foundational transformer paper|
 |RAG for Knowledge-Intensive NLP|2005.11401|Original RAG paper|
-|LlamaIndex Knowledge Graph RAG|—|Key framework|
-|HippoRAG|2405.14831|Competing graph RAG approach|
-|KGRAG|2310.01061|Knowledge graph + RAG|
-|LightRAG|2410.05779|Alternative graph RAG implementation|
+|HippoRAG|2405.14831|Graph-oriented RAG approach|
 
-Adding more papers is one command. The citation graph grows automatically — ingesting one paper will discover and partially ingest the papers it cites.
+Add more ArXiv IDs to `PAPER_IDS` and re-run `npm run seed`. Citation resolution can discover additional papers as stubs with `CITES` edges.
 
 ---
 
-## Roadmap
+## Status
+
+This design is implemented end-to-end for the intended scope:
 
 - [x] ArXiv metadata ingestion
 - [x] PDF extraction and section splitting
 - [x] Citation graph construction
-- [x] LLM concept extraction
+- [x] LLM concept extraction (+ light mode fallback)
 - [x] Chunking and embedding pipeline
-- [x] Neo4j graph schema and vector index
-- [x] MCP server with core tools
-- [ ] Incremental ingestion (skip already-ingested papers)
-- [ ] Web UI to visualize the graph
-- [ ] Support for PDF upload (not just ArXiv)
-- [ ] Concept deduplication (merge similar concept nodes)
+- [x] Neo4j graph schema and vector indexes
+- [x] MCP tools: `get_paper`, `vector_search`, `get_citation_chain`, `get_concept_papers`, `get_author_papers`
+- [x] Dual MCP transports (stdio + Streamable HTTP)
 
 ---
 
