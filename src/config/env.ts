@@ -1,4 +1,7 @@
 import { config } from 'dotenv';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-config({ path: resolve(process.cwd(), '.env') });
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+
+config({ path: resolve(projectRoot, '.env') });
