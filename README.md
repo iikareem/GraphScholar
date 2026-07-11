@@ -24,7 +24,7 @@ GraphScholar ingests papers from ArXiv, builds a knowledge graph of authors, cit
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
-- [Roadmap](#roadmap)
+- [Status](#status)
 - [License](#license)
 
 ---
@@ -126,7 +126,7 @@ The assistant calls MCP tools, reads structured graph results, and reasons over 
                               Neo4j
                                 │
                                 ▼
-                         MCP Server (stdio)
+                         MCP Server (stdio / HTTP)
                                 │
                                 ▼
                     Claude Desktop / Cursor / any MCP client
@@ -220,15 +220,25 @@ Ingests the default paper list in `src/config/papers.ts`. Expect several minutes
 
 ### 6. Start the MCP server
 
+**stdio** (Cursor / Claude Desktop spawn the process):
+
 ```bash
 npm run mcp
 ```
 
-The server speaks MCP over **stdio**. Logs go to stderr; do not wrap it in a tool that captures stdout.
+Logs go to stderr — do not wrap the process in a tool that captures stdout.
 
-### 7. Connect to Claude Desktop
+**HTTP** (you start the server; client connects to a URL):
 
-Add to `claude_desktop_config.json`:
+```bash
+npm run mcp:http
+# http://127.0.0.1:3000/mcp
+# health: http://127.0.0.1:3000/health
+```
+
+### 7. Connect an MCP client
+
+**Cursor / Claude — stdio** example:
 
 ```json
 {
@@ -246,7 +256,19 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. The `get_paper` tool should appear in the tools list.
+**Cursor — HTTP** (requires `npm run mcp:http` already running):
+
+```json
+{
+  "mcpServers": {
+    "graph-scholar": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+After connecting, all five tools below should appear.
 
 ### Default seed papers
 
@@ -288,13 +310,13 @@ Restart Claude Desktop. The `get_paper` tool should appear in the tools list.
 
 ## MCP Tools
 
-| Tool | Status | Description |
-|---|---|---|
-| `get_paper` | **Available** | Paper metadata plus authors, categories, cited IDs, concepts, and chunk count |
-| `vector_search` | Scaffolded | Semantic search over chunk embeddings |
-| `get_citation_chain` | Scaffolded | Multi-hop citation traversal |
-| `get_concept_papers` | Scaffolded | Papers that introduce or use a concept |
-| `get_author_papers` | Scaffolded | All papers by an author |
+| Tool | Description |
+|---|---|
+| `get_paper` | Paper metadata plus authors, categories, cited IDs, concepts, and chunk count |
+| `vector_search` | Semantic search over chunk embeddings |
+| `get_citation_chain` | Multi-hop outbound citation traversal |
+| `get_concept_papers` | Papers that introduce or use a concept |
+| `get_author_papers` | All papers by an author (with concepts) |
 
 ### `get_paper`
 
@@ -318,7 +340,7 @@ Returns:
 }
 ```
 
-Additional tools are implemented under `src/mcp/tools/` and will be registered in `registerTools.ts` as the server matures. See [DESIGN.md](./DESIGN.md) for the full intended tool surface.
+See [DESIGN.md](./DESIGN.md) for schema and design notes.
 
 ---
 
@@ -338,6 +360,8 @@ Additional tools are implemented under `src/mcp/tools/` and will be registered i
 | `CHUNK_WORD_LIMIT` | `400` | Max words per chunk before splitting |
 | `CHUNK_OVERLAP_WORDS` | `40` | Overlap between consecutive chunks |
 | `MAX_CITATION_DEPTH` | `2` | Citation follow depth during ingestion |
+| `MCP_HTTP_HOST` | `127.0.0.1` | HTTP MCP bind host |
+| `MCP_HTTP_PORT` | `3000` | HTTP MCP port |
 
 ---
 
@@ -353,12 +377,15 @@ GraphScholar/
 │   │   ├── driver.ts
 │   │   └── schema.ts       # Constraints, indexes, vector indexes
 │   ├── mcp/
-│   │   ├── server.ts       # MCP entry point (stdio)
+│   │   ├── server.ts       # MCP stdio entry
+│   │   ├── httpServer.ts   # MCP Streamable HTTP entry
+│   │   ├── createApp.ts    # Shared tool registration
 │   │   ├── tools/          # MCP tool handlers
 │   │   └── queries/        # Cypher query helpers
 │   ├── config/             # Env, AI models, seed paper IDs
 │   ├── pipeline.ts         # Orchestrates ingestion per paper
 │   └── seed.ts             # Batch ingest from config
+├── docs/                   # Data-model Excalidraw diagram
 ├── docker-compose.yml      # Local Neo4j 5
 ├── DESIGN.md               # Detailed architecture & design doc
 └── .env.example
@@ -372,7 +399,7 @@ GraphScholar/
 |---|---|---|
 | Language | TypeScript | End-to-end types from ingestion to MCP responses |
 | Graph DB | Neo4j 5 | Native graph queries + built-in vector indexes |
-| Protocol | MCP (`@modelcontextprotocol/sdk`) | Standard tool interface for Claude, Cursor, etc. |
+| Protocol | MCP (`@modelcontextprotocol/sdk`) | stdio + Streamable HTTP for Claude, Cursor, etc. |
 | PDF | `pdfjs-dist` | Pure JS extraction, no system deps |
 | ArXiv | ArXiv API + `fast-xml-parser` | Metadata and PDF sources |
 | Embeddings / LLM | OpenAI-compatible API (oMLX default) | Local or cloud; swap models via env |
@@ -380,7 +407,9 @@ GraphScholar/
 
 ---
 
-## Roadmap
+## Status
+
+This project is feature-complete for its intended scope:
 
 - [x] ArXiv metadata ingestion
 - [x] PDF extraction and section splitting
@@ -388,13 +417,8 @@ GraphScholar/
 - [x] LLM concept extraction (+ light mode fallback)
 - [x] Chunking and embedding pipeline
 - [x] Neo4j schema with vector indexes
-- [x] MCP server with `get_paper`
-- [ ] Register remaining MCP tools (`vector_search`, `get_citation_chain`, …)
-- [ ] Incremental ingestion (skip already-ingested papers)
-- [ ] Single-paper CLI ingest command
-- [ ] Web UI for graph visualization
-- [ ] PDF upload support (non-ArXiv sources)
-- [ ] Concept deduplication across similar names
+- [x] MCP tools: `get_paper`, `vector_search`, `get_citation_chain`, `get_concept_papers`, `get_author_papers`
+- [x] Dual MCP transports (stdio + HTTP)
 
 ---
 
